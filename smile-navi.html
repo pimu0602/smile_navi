@@ -137,6 +137,17 @@
   .camera-controls { display: flex; gap: 10px; margin-top: 12px; }
   .privacy-note { color: var(--sub-text); font-size: .78rem; margin-top: 8px; text-align: center; }
 
+  .level-row { margin-top: 12px; }
+  .level-row-label { font-size: .8rem; color: var(--sub-text); margin-bottom: 6px; }
+  .level-buttons { display: flex; gap: 6px; }
+  .level-btn {
+    flex: 1; min-height: 38px; padding: 6px 4px; border-radius: 10px; cursor: pointer;
+    border: 1px solid var(--border); background: #fff; color: var(--text);
+    font-size: .82rem; font-weight: 700;
+  }
+  .level-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .level-hint { margin-top: 6px; font-size: .78rem; color: var(--sub-text); text-align: center; }
+
   button.primary-btn, button.ghost-btn, button.chip-btn {
     min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: .92rem; font-weight: 700; cursor: pointer;
   }
@@ -302,6 +313,15 @@
               <button id="startCamBtn" class="primary-btn" type="button">📷 カメラを起動</button>
               <button id="stopCamBtn" class="ghost-btn hidden" type="button">■ 停止</button>
             </div>
+            <div class="level-row">
+              <div class="level-row-label">判定レベル</div>
+              <div class="level-buttons" role="tablist">
+                <button class="level-btn" data-level="easy" type="button">やさしい</button>
+                <button class="level-btn" data-level="normal" type="button">普通</button>
+                <button class="level-btn" data-level="hard" type="button">厳しい</button>
+              </div>
+              <div id="levelHint" class="level-hint"></div>
+            </div>
             <p class="privacy-note">🔒 映像は端末内だけで処理され、外部へは送信されません</p>
           </div>
         </div>
@@ -370,12 +390,44 @@
     { key: 'tension', label: '力みがない', short: '脱力' },
   ];
 
+  // mouth/eye/tension は bool(合格ライン) と div(満点に達する値) のペア
+  // symmetry は左右差、teeth は口の開き具合の許容バンド
+  const LEVELS = {
+    easy: {
+      label: 'やさしい', hint: '大きめの表情なら合格しやすいモードです',
+      mouth: { bool: 0.32, div: 0.45 },
+      eye: { bool: 0.14, div: 0.24 },
+      symmetry: { bool: 0.20, div: 0.35 },
+      teeth: { lo: 0.04, hi: 0.45 },
+      tension: { bool: 0.45, div: 0.65 },
+    },
+    normal: {
+      label: '普通', hint: 'バランスよく判定する標準モードです',
+      mouth: { bool: 0.45, div: 0.62 },
+      eye: { bool: 0.20, div: 0.32 },
+      symmetry: { bool: 0.15, div: 0.28 },
+      teeth: { lo: 0.09, hi: 0.38 },
+      tension: { bool: 0.35, div: 0.52 },
+    },
+    hard: {
+      label: '厳しい', hint: '自然な笑顔でもしっかり判定する上級モードです',
+      mouth: { bool: 0.58, div: 0.75 },
+      eye: { bool: 0.27, div: 0.38 },
+      symmetry: { bool: 0.10, div: 0.20 },
+      teeth: { lo: 0.13, hi: 0.32 },
+      tension: { bool: 0.25, div: 0.42 },
+    },
+  };
+  const WEIGHTS = { mouth: 35, eye: 35, symmetry: 10, teeth: 10, tension: 10 };
+
   const video = document.getElementById('video');
   const cameraBlock = document.getElementById('cameraBlock');
   const cameraMsg = document.getElementById('cameraMsg');
   const startCamBtn = document.getElementById('startCamBtn');
   const stopCamBtn = document.getElementById('stopCamBtn');
   const countdownOverlay = document.getElementById('countdownOverlay');
+  const levelButtons = document.querySelectorAll('.level-btn');
+  const levelHint = document.getElementById('levelHint');
   const overlayScore = document.getElementById('overlayScore');
   const liveOverlay = document.getElementById('liveOverlay');
   const overlayComment = document.getElementById('overlayComment');
@@ -412,6 +464,20 @@
     test: document.getElementById('tab-test'),
   };
   const slots = { practice: practiceCameraSlot, test: testCameraSlot };
+
+  let currentLevel = localStorage.getItem('smileNavi.level') || 'normal';
+  if (!LEVELS[currentLevel]) currentLevel = 'normal';
+
+  function applyLevelUI() {
+    levelButtons.forEach(b => b.classList.toggle('active', b.dataset.level === currentLevel));
+    levelHint.textContent = LEVELS[currentLevel].hint;
+  }
+  levelButtons.forEach(btn => btn.addEventListener('click', () => {
+    currentLevel = btn.dataset.level;
+    localStorage.setItem('smileNavi.level', currentLevel);
+    applyLevelUI();
+  }));
+  applyLevelUI();
 
   function setActiveTab(name) {
     tabButtons.forEach(b => {
@@ -670,24 +736,29 @@
     const jawOpenAvg = avgBuf('jawOpen');
     const tensionAvg = avgBuf('tension');
 
+    const L = LEVELS[currentLevel];
     const checklist = {
-      mouth: mouthSmileAvg > 0.45,
-      eye: eyeSmileAvg > 0.12,
-      symmetry: symDiff < 0.15,
-      teeth: jawOpenAvg >= 0.05 && jawOpenAvg <= 0.35,
-      tension: tensionAvg < 0.35,
+      mouth: mouthSmileAvg > L.mouth.bool,
+      eye: eyeSmileAvg > L.eye.bool,
+      symmetry: symDiff < L.symmetry.bool,
+      teeth: jawOpenAvg >= L.teeth.lo && jawOpenAvg <= L.teeth.hi,
+      tension: tensionAvg < L.tension.bool,
     };
 
-    const mouthG = clamp01(mouthSmileAvg / 0.6);
-    const eyeG = clamp01(eyeSmileAvg / 0.18);
-    const symG = clamp01(1 - symDiff / 0.3);
+    const mouthG = clamp01(mouthSmileAvg / L.mouth.div);
+    const eyeG = clamp01(eyeSmileAvg / L.eye.div);
+    const symG = clamp01(1 - symDiff / L.symmetry.div);
     let teethG;
-    if (jawOpenAvg < 0.05) teethG = clamp01(jawOpenAvg / 0.05);
-    else if (jawOpenAvg > 0.35) teethG = clamp01(1 - (jawOpenAvg - 0.35) / 0.3);
+    const bandWidth = L.teeth.hi - L.teeth.lo;
+    if (jawOpenAvg < L.teeth.lo) teethG = clamp01(jawOpenAvg / L.teeth.lo);
+    else if (jawOpenAvg > L.teeth.hi) teethG = clamp01(1 - (jawOpenAvg - L.teeth.hi) / bandWidth);
     else teethG = 1;
-    const tensionG = clamp01(1 - tensionAvg / 0.5);
+    const tensionG = clamp01(1 - tensionAvg / L.tension.div);
 
-    const score = Math.round(30 * mouthG + 30 * eyeG + 15 * symG + 15 * teethG + 10 * tensionG);
+    const score = Math.round(
+      WEIGHTS.mouth * mouthG + WEIGHTS.eye * eyeG + WEIGHTS.symmetry * symG +
+      WEIGHTS.teeth * teethG + WEIGHTS.tension * tensionG
+    );
 
     latestScore = score;
     latestChecklist = checklist;
@@ -700,12 +771,13 @@
   }
 
   function updateComment(checklist, metrics) {
+    const teethLo = LEVELS[currentLevel].teeth.lo;
     const items = [
-      { key: 'mouth', pass: checklist.mouth, weight: 30, text: '口角をもっと上げてみて!「ハッピー」と言うイメージで口角をキュッと。' },
-      { key: 'eye', pass: checklist.eye, weight: 30, text: '目元も一緒に笑わせて!下まぶたを軽く持ち上げる意識で。' },
-      { key: 'symmetry', pass: checklist.symmetry, weight: 15, text: '左右のバランスを整えて!片方だけ口角が上がっていないか確認してみて。' },
-      { key: 'teeth', pass: checklist.teeth, weight: 15, text: metrics.jawOpen < 0.05 ? '口を少しだけ開けて、上の歯を見せてみて。' : '口を開けすぎかも。少し力を抜いてみて。' },
-      { key: 'tension', pass: checklist.tension, weight: 10, text: '力が入りすぎてるかも。一度ふーっと脱力してから笑ってみて。' },
+      { key: 'mouth', pass: checklist.mouth, weight: WEIGHTS.mouth, text: '口角をもっと上げてみて!「ハッピー」と言うイメージで口角をキュッと。' },
+      { key: 'eye', pass: checklist.eye, weight: WEIGHTS.eye, text: '目元も一緒に笑わせて!下まぶたを軽く持ち上げる意識で。' },
+      { key: 'symmetry', pass: checklist.symmetry, weight: WEIGHTS.symmetry, text: '左右のバランスを整えて!片方だけ口角が上がっていないか確認してみて。' },
+      { key: 'teeth', pass: checklist.teeth, weight: WEIGHTS.teeth, text: metrics.jawOpen < teethLo ? '口を少しだけ開けて、上の歯を見せてみて。' : '口を開けすぎかも。少し力を抜いてみて。' },
+      { key: 'tension', pass: checklist.tension, weight: WEIGHTS.tension, text: '力が入りすぎてるかも。一度ふーっと脱力してから笑ってみて。' },
     ];
     const failing = items.filter(i => !i.pass).sort((a, b) => b.weight - a.weight);
     const target = failing.length ? failing[0] : { key: 'perfect', text: '✨ 完璧!その表情の感覚を覚えておこう!' };
