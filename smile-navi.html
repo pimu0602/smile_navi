@@ -105,6 +105,35 @@
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     background: rgba(0,0,0,.4); color: #fff; font-size: clamp(3rem, 14vw, 6rem); font-weight: 800;
   }
+
+  /* カメラ映像上のライブ表示(スクロールせず確認できるように) */
+  .overlay-score {
+    position: absolute; top: 10px; left: 10px;
+    background: rgba(0,0,0,.55); color: #fff;
+    border-radius: 999px; padding: 4px 14px;
+    font-size: 1rem; font-weight: 800;
+    pointer-events: none;
+  }
+  .overlay-score.mid { background: rgba(245,158,11,.9); }
+  .overlay-score.high { background: rgba(34,197,94,.9); }
+  .live-overlay {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 26px 8px 10px; display: flex; flex-direction: column; gap: 7px;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,.6));
+    pointer-events: none;
+  }
+  .overlay-comment {
+    color: #fff; font-size: .84rem; font-weight: 700; text-align: center;
+    text-shadow: 0 1px 3px rgba(0,0,0,.9); line-height: 1.4;
+  }
+  .overlay-chips { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
+  .overlay-chip {
+    background: rgba(0,0,0,.5); color: rgba(255,255,255,.85);
+    border: 1px solid rgba(255,255,255,.35);
+    border-radius: 999px; padding: 2px 10px; font-size: .76rem; font-weight: 700;
+    white-space: nowrap;
+  }
+  .overlay-chip.done { background: rgba(34,197,94,.92); border-color: transparent; color: #fff; }
   .camera-controls { display: flex; gap: 10px; margin-top: 12px; }
   .privacy-note { color: var(--sub-text); font-size: .78rem; margin-top: 8px; text-align: center; }
 
@@ -261,6 +290,11 @@
             <div class="camera-wrap">
               <video id="video" autoplay playsinline muted></video>
               <div class="face-guide"></div>
+              <div id="overlayScore" class="overlay-score hidden">0点</div>
+              <div id="liveOverlay" class="live-overlay hidden">
+                <div id="overlayComment" class="overlay-comment"></div>
+                <div id="overlayChips" class="overlay-chips"></div>
+              </div>
               <div id="countdownOverlay" class="countdown-overlay hidden"></div>
               <div id="cameraMsg" class="camera-msg">📷 カメラを起動してください</div>
             </div>
@@ -329,11 +363,11 @@
 
 <script type="module">
   const CHECK_ITEMS = [
-    { key: 'mouth', label: '口角が上がっている' },
-    { key: 'eye', label: '目が笑っている' },
-    { key: 'symmetry', label: '左右のバランスが良い' },
-    { key: 'teeth', label: '口の開き具合がちょうど良い' },
-    { key: 'tension', label: '力みがない' },
+    { key: 'mouth', label: '口角が上がっている', short: '口角' },
+    { key: 'eye', label: '目が笑っている', short: '目' },
+    { key: 'symmetry', label: '左右のバランスが良い', short: '左右' },
+    { key: 'teeth', label: '口の開き具合がちょうど良い', short: '口の開き' },
+    { key: 'tension', label: '力みがない', short: '脱力' },
   ];
 
   const video = document.getElementById('video');
@@ -342,6 +376,10 @@
   const startCamBtn = document.getElementById('startCamBtn');
   const stopCamBtn = document.getElementById('stopCamBtn');
   const countdownOverlay = document.getElementById('countdownOverlay');
+  const overlayScore = document.getElementById('overlayScore');
+  const liveOverlay = document.getElementById('liveOverlay');
+  const overlayComment = document.getElementById('overlayComment');
+  const overlayChips = document.getElementById('overlayChips');
 
   const scoreFill = document.getElementById('scoreFill');
   const scoreNum = document.getElementById('scoreNum');
@@ -391,6 +429,13 @@
       const ok = !!checklist[item.key];
       return `<li class="${ok ? 'done' : ''}"><span class="check-icon">${ok ? '✅' : '⬜'}</span><span class="check-text">${item.label}</span></li>`;
     }).join('');
+    if (container === checklistEl) renderOverlayChips(checklist);
+  }
+  function renderOverlayChips(checklist) {
+    overlayChips.innerHTML = CHECK_ITEMS.map(item => {
+      const ok = !!checklist[item.key];
+      return `<span class="overlay-chip ${ok ? 'done' : ''}">${ok ? '✓' : ''}${item.short}</span>`;
+    }).join('');
   }
   const emptyChecklist = { mouth: false, eye: false, symmetry: false, teeth: false, tension: false };
   renderChecklist(checklistEl, emptyChecklist);
@@ -401,6 +446,10 @@
     scoreFill.classList.remove('mid', 'high');
     if (score >= 70) scoreFill.classList.add('high');
     else if (score >= 40) scoreFill.classList.add('mid');
+    overlayScore.textContent = score + '点';
+    overlayScore.classList.remove('mid', 'high');
+    if (score >= 70) overlayScore.classList.add('high');
+    else if (score >= 40) overlayScore.classList.add('mid');
   }
 
   /* ===== localStorage: ストリーク / ベストスコア / 履歴 ===== */
@@ -510,6 +559,8 @@
       setCameraMsg('');
       startCamBtn.classList.add('hidden');
       stopCamBtn.classList.remove('hidden');
+      overlayScore.classList.remove('hidden');
+      liveOverlay.classList.remove('hidden');
       lastVideoTime = -1;
       noFaceStreak = 0;
       detectLoop();
@@ -533,6 +584,8 @@
     setCameraMsg('📷 カメラを起動してください');
     startCamBtn.classList.remove('hidden');
     stopCamBtn.classList.add('hidden');
+    overlayScore.classList.add('hidden');
+    liveOverlay.classList.add('hidden');
     updateScoreUI(0);
     renderChecklist(checklistEl, emptyChecklist);
     commentBox.textContent = 'カメラを起動すると、アドバイスがここに表示されます';
@@ -554,6 +607,7 @@
           updateScoreUI(0);
           renderChecklist(checklistEl, emptyChecklist);
           commentBox.textContent = '顔が検出できません。カメラの正面に顔を映してください';
+          overlayComment.textContent = '顔が検出できません';
           if (keepChallengeActive) { keepStartTime = null; updateKeepBar(0); }
         }
       }
@@ -592,34 +646,40 @@
     const mouthSmileR = catScore(cats, 'mouthSmileRight');
     const cheekSquintL = catScore(cats, 'cheekSquintLeft');
     const cheekSquintR = catScore(cats, 'cheekSquintRight');
+    const eyeSquintL = catScore(cats, 'eyeSquintLeft');
+    const eyeSquintR = catScore(cats, 'eyeSquintRight');
     const jawOpen = catScore(cats, 'jawOpen');
     const browDownL = catScore(cats, 'browDownLeft');
     const browDownR = catScore(cats, 'browDownRight');
     const pressL = catScore(cats, 'mouthPressLeft');
     const pressR = catScore(cats, 'mouthPressRight');
 
+    // 頬の持ち上がり(cheekSquint)は検出値が小さく出がちなので、
+    // 目の細まり(eyeSquint)との大きい方を「目の笑い」として扱う
+    const eyeSmileRaw = Math.max((cheekSquintL + cheekSquintR) / 2, (eyeSquintL + eyeSquintR) / 2);
+
     pushBuf('mouth', (mouthSmileL + mouthSmileR) / 2);
-    pushBuf('eye', (cheekSquintL + cheekSquintR) / 2);
+    pushBuf('eye', eyeSmileRaw);
     pushBuf('symmetry', Math.abs(mouthSmileL - mouthSmileR));
     pushBuf('jawOpen', jawOpen);
     pushBuf('tension', (browDownL + browDownR) / 2 * 0.6 + (pressL + pressR) / 2 * 0.4);
 
     const mouthSmileAvg = avgBuf('mouth');
-    const cheekSquintAvg = avgBuf('eye');
+    const eyeSmileAvg = avgBuf('eye');
     const symDiff = avgBuf('symmetry');
     const jawOpenAvg = avgBuf('jawOpen');
     const tensionAvg = avgBuf('tension');
 
     const checklist = {
       mouth: mouthSmileAvg > 0.45,
-      eye: cheekSquintAvg > 0.25,
+      eye: eyeSmileAvg > 0.12,
       symmetry: symDiff < 0.15,
       teeth: jawOpenAvg >= 0.05 && jawOpenAvg <= 0.35,
       tension: tensionAvg < 0.35,
     };
 
     const mouthG = clamp01(mouthSmileAvg / 0.6);
-    const eyeG = clamp01(cheekSquintAvg / 0.35);
+    const eyeG = clamp01(eyeSmileAvg / 0.18);
     const symG = clamp01(1 - symDiff / 0.3);
     let teethG;
     if (jawOpenAvg < 0.05) teethG = clamp01(jawOpenAvg / 0.05);
@@ -655,6 +715,7 @@
       lastCommentChangeTime = now;
       commentBox.textContent = target.text;
     }
+    if (!keepChallengeActive) overlayComment.textContent = commentBox.textContent;
   }
 
   /* ===== 5秒キープチャレンジ ===== */
@@ -671,10 +732,12 @@
       if (keepStartTime === null) keepStartTime = performance.now();
       const elapsed = performance.now() - keepStartTime;
       updateKeepBar(elapsed);
+      overlayComment.textContent = `⏱️ キープ中... ${Math.min(5, elapsed / 1000).toFixed(1)} / 5.0秒`;
       if (elapsed >= 5000) keepSuccess();
     } else {
       keepStartTime = null;
       updateKeepBar(0);
+      overlayComment.textContent = '⏱️ 全項目クリアでキープ開始!';
     }
   }
   function keepSuccess() {
@@ -683,6 +746,7 @@
     keepBarWrap.classList.add('hidden');
     keepToggleBtn.textContent = '挑戦する';
     keepMsg.textContent = '🎉 5秒キープ成功!よくできました!';
+    overlayComment.textContent = '🎉 5秒キープ成功!よくできました!';
     markPracticed();
   }
   keepToggleBtn.addEventListener('click', () => {
