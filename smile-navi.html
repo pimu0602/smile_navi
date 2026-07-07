@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スマイルナビ | 笑顔練習アプリ</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%98%8A%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #fff8f2;
+    --card-bg: #ffffff;
+    --text: #2b2420;
+    --sub-text: #8a7b6c;
+    --border: #f0ded0;
+    --primary: #ff7a59;
+    --primary-dark: #e85d3d;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --danger: #c2410c;
+    --danger-bg: #ffedd5;
+    --radius: 14px;
+    --shadow: 0 1px 4px rgba(60,40,20,.08), 0 2px 12px rgba(60,40,20,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 16px; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .hidden { display: none !important; }
+
+  /* ===== ヘッダー ===== */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(135deg, #ff7a59, #ff5f96);
+    color: #fff;
+    padding: 12px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.2);
+  }
+  .header-inner { max-width: 1100px; margin: 0 auto; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .app-title { font-size: 1.2rem; font-weight: 700; letter-spacing: .02em; display: flex; align-items: center; gap: 8px; }
+  .app-title .logo { font-size: 1.35rem; }
+  .streak-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.4);
+    border-radius: 999px; padding: 6px 14px; font-weight: 700; font-size: .95rem;
+  }
+  .tabs { display: flex; gap: 6px; margin-top: 10px; }
+  .tab-btn {
+    flex: 1; min-height: 44px; padding: 8px 6px;
+    border: 1px solid rgba(255,255,255,.4); border-radius: 10px;
+    background: rgba(255,255,255,.12); color: #fff;
+    font-size: .88rem; font-weight: 600; cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab-btn.active { background: #fff; color: var(--primary-dark); }
+
+  main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ===== 見本解説タブ ===== */
+  .guide-intro { color: var(--sub-text); margin-bottom: 16px; }
+  .guide-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .guide-card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 18px;
+  }
+  .guide-card h3 { font-size: 1.05rem; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .guide-card p { color: var(--text); font-size: .94rem; margin-bottom: 6px; }
+  .guide-card .sub { color: var(--sub-text); font-size: .86rem; }
+  .compare-row { display: flex; gap: 18px; justify-content: center; margin: 12px 0 6px; flex-wrap: wrap; }
+  .compare-item { text-align: center; }
+  .face-svg { width: 110px; height: 110px; }
+  .compare-label { font-size: .82rem; font-weight: 700; margin-top: 4px; }
+  .compare-label.good { color: var(--ok); }
+  .compare-label.bad { color: var(--danger); }
+  .tip-list { list-style: none; margin-top: 8px; }
+  .tip-list li { font-size: .9rem; padding: 4px 0 4px 22px; position: relative; }
+  .tip-list li::before { content: "💡"; position: absolute; left: 0; }
+
+  /* ===== 練習/本番タブ 共通レイアウト ===== */
+  .practice-layout, .test-layout { display: flex; flex-direction: column; gap: 20px; }
+  @media (min-width: 760px) {
+    .practice-layout, .test-layout { flex-direction: row; align-items: flex-start; }
+    .camera-col { flex: 1 1 380px; }
+    .result-col { flex: 1 1 320px; }
+  }
+  .camera-slot { max-width: 460px; margin: 0 auto; }
+
+  .camera-panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px; }
+  .camera-wrap { position: relative; width: 100%; aspect-ratio: 3 / 4; background: #1c1712; border-radius: 10px; overflow: hidden; }
+  .camera-wrap video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+  .face-guide { position: absolute; inset: 8% 16%; border: 3px dashed rgba(255,255,255,.55); border-radius: 50%; pointer-events: none; }
+  .camera-msg {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    text-align: center; color: #fff; background: rgba(20,15,10,.55); font-size: .95rem; padding: 20px;
+  }
+  .countdown-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.4); color: #fff; font-size: clamp(3rem, 14vw, 6rem); font-weight: 800;
+  }
+  .camera-controls { display: flex; gap: 10px; margin-top: 12px; }
+  .privacy-note { color: var(--sub-text); font-size: .78rem; margin-top: 8px; text-align: center; }
+
+  button.primary-btn, button.ghost-btn, button.chip-btn {
+    min-height: 44px; padding: 10px 16px; border-radius: 10px; font-size: .92rem; font-weight: 700; cursor: pointer;
+  }
+  .primary-btn { flex: 1; border: none; background: var(--primary); color: #fff; }
+  .primary-btn:hover { background: var(--primary-dark); }
+  .primary-btn:disabled { opacity: .55; cursor: default; }
+  .primary-btn.wide { width: 100%; margin-top: 12px; }
+  .ghost-btn { border: 1px solid var(--border); background: #fff; color: var(--text); }
+  .chip-btn { border: 1px solid var(--primary); background: #fff; color: var(--primary-dark); padding: 6px 14px; min-height: 34px; font-size: .82rem; }
+
+  /* ===== スコア/チェックリスト ===== */
+  .score-block { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 14px; }
+  .score-label { font-size: .85rem; color: var(--sub-text); margin-bottom: 8px; }
+  .score-gauge { width: 100%; height: 14px; background: #f0e0d0; border-radius: 999px; overflow: hidden; }
+  .score-fill { height: 100%; width: 0%; border-radius: 999px; background: #ef4444; transition: width .25s ease, background-color .25s ease; }
+  .score-fill.mid { background: #f59e0b; }
+  .score-fill.high { background: #22c55e; }
+  .score-num { margin-top: 8px; font-size: 1.8rem; font-weight: 800; }
+  .score-num.big { font-size: 2.3rem; text-align: center; }
+  .score-unit { font-size: 1rem; font-weight: 600; color: var(--sub-text); margin-left: 2px; }
+
+  .checklist { list-style: none; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 14px; overflow: hidden; }
+  .checklist li { display: flex; align-items: center; gap: 10px; padding: 12px 16px; font-size: .92rem; border-bottom: 1px solid var(--border); }
+  .checklist li:last-child { border-bottom: none; }
+  .checklist li.done { background: var(--ok-bg); color: var(--ok); font-weight: 700; }
+  .check-icon { font-size: 1.1rem; }
+
+  .comment-box {
+    background: #fff3ec; border-left: 4px solid var(--primary); border-radius: 10px;
+    padding: 14px 16px; font-size: .92rem; font-weight: 600; margin-bottom: 14px;
+  }
+
+  .keep-challenge { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; }
+  .keep-header { display: flex; align-items: center; justify-content: space-between; font-size: .92rem; font-weight: 700; }
+  .keep-bar-wrap { margin-top: 10px; height: 10px; background: #f0e0d0; border-radius: 999px; overflow: hidden; }
+  .keep-bar { height: 100%; width: 0%; background: var(--primary); border-radius: 999px; transition: width .1s linear; }
+  .keep-msg { margin-top: 8px; font-size: .85rem; color: var(--sub-text); }
+
+  /* ===== 本番テストタブ ===== */
+  .best-score-block { display: flex; align-items: center; justify-content: space-between; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-top: 14px; }
+  .best-label { font-size: .85rem; color: var(--sub-text); }
+  .best-num { font-size: 1.6rem; font-weight: 800; }
+  .history-block { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; margin-top: 14px; }
+  .history-label { font-size: .85rem; color: var(--sub-text); margin-bottom: 10px; }
+  .history-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+  .history-bar { flex: 1; min-width: 8px; background: linear-gradient(180deg, #ff9a76, #ff5f96); border-radius: 4px 4px 0 0; }
+  .test-idle p { color: var(--sub-text); font-size: .9rem; }
+  .test-result { text-align: center; }
+  .capture-canvas { width: 100%; max-width: 300px; border-radius: var(--radius); box-shadow: var(--shadow); margin: 0 auto 14px; display: block; }
+  .new-best-badge { margin-top: 8px; color: var(--warn); font-weight: 800; font-size: .95rem; }
+  #testResult .checklist { text-align: left; }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="header-top">
+      <div class="app-title"><span class="logo">😊</span>スマイルナビ</div>
+      <div class="streak-badge">🔥 <span id="streakCount">0</span>日連続</div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn active" data-tab="guide" type="button" role="tab" aria-selected="true">📖 見本解説</button>
+      <button class="tab-btn" data-tab="practice" type="button" role="tab" aria-selected="false">🎥 練習</button>
+      <button class="tab-btn" data-tab="test" type="button" role="tab" aria-selected="false">📸 本番テスト</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===== 見本解説タブ ===== -->
+  <section id="tab-guide" class="tab-panel active">
+    <p class="guide-intro">写真のときに違和感なく笑うコツを5つのポイントで解説します。まずは理屈を知ってから、練習タブで実際に確認してみましょう。</p>
+    <div class="guide-grid">
+
+      <div class="guide-card">
+        <h3>① 自然な笑顔の正体</h3>
+        <p>作り笑いに見える一番の原因は「口は笑っているのに目が笑っていない」こと。心理学では目元まで笑う本物の笑顔を<b>デュシェンヌ・スマイル</b>と呼びます。</p>
+        <div class="compare-row">
+          <div class="compare-item">
+            <svg class="face-svg" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="55" fill="#ffe8c2" stroke="#e8b74a" stroke-width="3"/>
+              <path d="M28 50 Q40 36 52 50" stroke="#3a2e1f" stroke-width="5" fill="none" stroke-linecap="round"/>
+              <path d="M68 50 Q80 36 92 50" stroke="#3a2e1f" stroke-width="5" fill="none" stroke-linecap="round"/>
+              <circle cx="30" cy="68" r="7" fill="#ff9d8a" opacity=".7"/>
+              <circle cx="90" cy="68" r="7" fill="#ff9d8a" opacity=".7"/>
+              <path d="M33 76 Q60 102 87 76 Q60 92 33 76 Z" fill="#fff" stroke="#3a2e1f" stroke-width="3"/>
+            </svg>
+            <div class="compare-label good">◎ 目も笑っている</div>
+          </div>
+          <div class="compare-item">
+            <svg class="face-svg" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="55" fill="#ffe8c2" stroke="#e8b74a" stroke-width="3"/>
+              <ellipse cx="40" cy="50" rx="9" ry="9" fill="#fff" stroke="#3a2e1f" stroke-width="3"/>
+              <circle cx="40" cy="50" r="3.5" fill="#3a2e1f"/>
+              <ellipse cx="80" cy="50" rx="9" ry="9" fill="#fff" stroke="#3a2e1f" stroke-width="3"/>
+              <circle cx="80" cy="50" r="3.5" fill="#3a2e1f"/>
+              <path d="M33 76 Q60 102 87 76 Q60 92 33 76 Z" fill="#fff" stroke="#3a2e1f" stroke-width="3"/>
+            </svg>
+            <div class="compare-label bad">✕ 口だけ・目は真顔</div>
+          </div>
+        </div>
+        <p class="sub">同じ口の形でも、目元(頬の持ち上がり)があるかどうかで印象が大きく変わります。</p>
+      </div>
+
+      <div class="guide-card">
+        <h3>② 口角の上げ方</h3>
+        <ul class="tip-list">
+          <li>「ウイスキー」より「ハッピー」と言う口の形の方が口角が上がりやすい</li>
+          <li>割り箸を横にくわえて、口角が箸のラインより上にくるよう意識して練習すると感覚をつかみやすい</li>
+          <li>左右どちらかだけ上がりがちな人が多いので、鏡やカメラでバランスを確認する</li>
+        </ul>
+      </div>
+
+      <div class="guide-card">
+        <h3>③ 目の笑わせ方</h3>
+        <ul class="tip-list">
+          <li>下まぶたを軽く持ち上げるイメージを持つと、自然に頬が上がって目が笑う</li>
+          <li>一番手っ取り早いのは「楽しかった記憶」を一瞬思い出すこと。表情筋より感情が先に動く</li>
+          <li>カメラのレンズではなく、レンズの少し奥にいる人を見るつもりで見ると目に力が入りすぎない</li>
+        </ul>
+      </div>
+
+      <div class="guide-card">
+        <h3>④ 歯の見せ方</h3>
+        <ul class="tip-list">
+          <li>上の歯が6〜8本くらい見える開き具合が、自然で好印象に見えやすい</li>
+          <li>下の歯まで見えるほど大きく開けると、力んだ表情に見えがち</li>
+          <li>口を閉じたまま口角だけ上げる「微笑み」も、証明写真などでは有効</li>
+        </ul>
+      </div>
+
+      <div class="guide-card">
+        <h3>⑤ 写真直前のコツ</h3>
+        <ul class="tip-list">
+          <li>シャッターの3秒前に一度「ふーっ」と脱力してから笑うと、硬直した表情を防げる</li>
+          <li>長く笑顔をキープし続けると筋肉が疲れて不自然になるので、キープは短く</li>
+          <li>撮影直前に軽く深呼吸すると、肩と顔の力みが取れやすい</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== 練習タブ ===== -->
+  <section id="tab-practice" class="tab-panel">
+    <div class="practice-layout">
+      <div class="camera-col">
+        <div id="practiceCameraSlot" class="camera-slot">
+          <div id="cameraBlock" class="camera-panel">
+            <div class="camera-wrap">
+              <video id="video" autoplay playsinline muted></video>
+              <div class="face-guide"></div>
+              <div id="countdownOverlay" class="countdown-overlay hidden"></div>
+              <div id="cameraMsg" class="camera-msg">📷 カメラを起動してください</div>
+            </div>
+            <div class="camera-controls">
+              <button id="startCamBtn" class="primary-btn" type="button">📷 カメラを起動</button>
+              <button id="stopCamBtn" class="ghost-btn hidden" type="button">■ 停止</button>
+            </div>
+            <p class="privacy-note">🔒 映像は端末内だけで処理され、外部へは送信されません</p>
+          </div>
+        </div>
+      </div>
+      <div class="result-col">
+        <div class="score-block">
+          <div class="score-label">笑顔スコア</div>
+          <div class="score-gauge"><div id="scoreFill" class="score-fill"></div></div>
+          <div class="score-num"><span id="scoreNum">0</span><span class="score-unit">点</span></div>
+        </div>
+        <ul id="checklist" class="checklist"></ul>
+        <div id="commentBox" class="comment-box">カメラを起動すると、アドバイスがここに表示されます</div>
+        <div class="keep-challenge">
+          <div class="keep-header">
+            <span>⏱️ 5秒キープチャレンジ</span>
+            <button id="keepToggleBtn" class="chip-btn" type="button">挑戦する</button>
+          </div>
+          <div id="keepBarWrap" class="keep-bar-wrap hidden"><div id="keepBar" class="keep-bar"></div></div>
+          <div id="keepMsg" class="keep-msg">全項目クリアの状態を5秒キープできるか挑戦してみよう</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 本番テストタブ ===== -->
+  <section id="tab-test" class="tab-panel">
+    <div class="test-layout">
+      <div class="camera-col">
+        <div id="testCameraSlot" class="camera-slot"></div>
+        <button id="captureBtn" class="primary-btn wide" type="button">📸 本番テストを始める(3・2・1)</button>
+      </div>
+      <div class="result-col">
+        <div id="testIdle" class="test-idle">
+          <p>カメラを起動して準備ができたら、左のボタンでカウントダウン撮影スタート!本番の一瞬の笑顔を採点します。</p>
+          <div class="best-score-block">
+            <div><div class="best-label">自己ベスト</div><div class="best-num"><span id="bestScoreNum">--</span><span class="score-unit">点</span></div></div>
+            <div style="font-size:2rem;">🏆</div>
+          </div>
+          <div class="history-block">
+            <div class="history-label">最近のスコア推移</div>
+            <div id="historyBars" class="history-bars"></div>
+          </div>
+        </div>
+        <div id="testResult" class="test-result hidden">
+          <canvas id="captureCanvas" class="capture-canvas"></canvas>
+          <div class="score-block">
+            <div class="score-label" style="text-align:center;">今回のスコア</div>
+            <div class="score-num big"><span id="resultScoreNum">0</span><span class="score-unit">点</span></div>
+            <div id="newBestBadge" class="new-best-badge hidden">🎉 自己ベスト更新!</div>
+          </div>
+          <ul id="resultChecklist" class="checklist"></ul>
+          <button id="retryBtn" class="primary-btn wide" type="button">🔄 もう一回</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script type="module">
+  const CHECK_ITEMS = [
+    { key: 'mouth', label: '口角が上がっている' },
+    { key: 'eye', label: '目が笑っている' },
+    { key: 'symmetry', label: '左右のバランスが良い' },
+    { key: 'teeth', label: '口の開き具合がちょうど良い' },
+    { key: 'tension', label: '力みがない' },
+  ];
+
+  const video = document.getElementById('video');
+  const cameraBlock = document.getElementById('cameraBlock');
+  const cameraMsg = document.getElementById('cameraMsg');
+  const startCamBtn = document.getElementById('startCamBtn');
+  const stopCamBtn = document.getElementById('stopCamBtn');
+  const countdownOverlay = document.getElementById('countdownOverlay');
+
+  const scoreFill = document.getElementById('scoreFill');
+  const scoreNum = document.getElementById('scoreNum');
+  const checklistEl = document.getElementById('checklist');
+  const commentBox = document.getElementById('commentBox');
+
+  const keepToggleBtn = document.getElementById('keepToggleBtn');
+  const keepBarWrap = document.getElementById('keepBarWrap');
+  const keepBar = document.getElementById('keepBar');
+  const keepMsg = document.getElementById('keepMsg');
+
+  const captureBtn = document.getElementById('captureBtn');
+  const testIdle = document.getElementById('testIdle');
+  const testResult = document.getElementById('testResult');
+  const captureCanvas = document.getElementById('captureCanvas');
+  const resultScoreNum = document.getElementById('resultScoreNum');
+  const newBestBadge = document.getElementById('newBestBadge');
+  const resultChecklistEl = document.getElementById('resultChecklist');
+  const retryBtn = document.getElementById('retryBtn');
+  const bestScoreNumEl = document.getElementById('bestScoreNum');
+  const historyBarsEl = document.getElementById('historyBars');
+  const streakCountEl = document.getElementById('streakCount');
+
+  const practiceCameraSlot = document.getElementById('practiceCameraSlot');
+  const testCameraSlot = document.getElementById('testCameraSlot');
+  const tabButtons = document.querySelectorAll('.tab-btn');
+  const panels = {
+    guide: document.getElementById('tab-guide'),
+    practice: document.getElementById('tab-practice'),
+    test: document.getElementById('tab-test'),
+  };
+  const slots = { practice: practiceCameraSlot, test: testCameraSlot };
+
+  function setActiveTab(name) {
+    tabButtons.forEach(b => {
+      const active = b.dataset.tab === name;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', String(active));
+    });
+    Object.entries(panels).forEach(([key, el]) => el.classList.toggle('active', key === name));
+    if (slots[name] && cameraBlock.parentElement !== slots[name]) slots[name].appendChild(cameraBlock);
+  }
+  tabButtons.forEach(btn => btn.addEventListener('click', () => setActiveTab(btn.dataset.tab)));
+
+  function renderChecklist(container, checklist) {
+    container.innerHTML = CHECK_ITEMS.map(item => {
+      const ok = !!checklist[item.key];
+      return `<li class="${ok ? 'done' : ''}"><span class="check-icon">${ok ? '✅' : '⬜'}</span><span class="check-text">${item.label}</span></li>`;
+    }).join('');
+  }
+  const emptyChecklist = { mouth: false, eye: false, symmetry: false, teeth: false, tension: false };
+  renderChecklist(checklistEl, emptyChecklist);
+
+  function updateScoreUI(score) {
+    scoreNum.textContent = score;
+    scoreFill.style.width = score + '%';
+    scoreFill.classList.remove('mid', 'high');
+    if (score >= 70) scoreFill.classList.add('high');
+    else if (score >= 40) scoreFill.classList.add('mid');
+  }
+
+  /* ===== localStorage: ストリーク / ベストスコア / 履歴 ===== */
+  function todayStr() { return new Date().toISOString().slice(0, 10); }
+  function loadDates() { try { return JSON.parse(localStorage.getItem('smileNavi.practiceDates') || '[]'); } catch { return []; } }
+  function markPracticed() {
+    const dates = loadDates();
+    const t = todayStr();
+    if (!dates.includes(t)) {
+      dates.push(t);
+      localStorage.setItem('smileNavi.practiceDates', JSON.stringify(dates.slice(-60)));
+    }
+    updateStreakUI();
+  }
+  function computeStreak() {
+    const dates = new Set(loadDates());
+    let streak = 0;
+    const d = new Date();
+    while (dates.has(d.toISOString().slice(0, 10))) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  }
+  function updateStreakUI() { streakCountEl.textContent = computeStreak(); }
+
+  function getBest() { return Number(localStorage.getItem('smileNavi.bestScore') || 0); }
+  function setBest(v) { localStorage.setItem('smileNavi.bestScore', String(v)); }
+  function loadHistory() { try { return JSON.parse(localStorage.getItem('smileNavi.scoreHistory') || '[]'); } catch { return []; } }
+  function pushHistory(score) {
+    const h = loadHistory();
+    h.push({ date: todayStr(), score });
+    localStorage.setItem('smileNavi.scoreHistory', JSON.stringify(h.slice(-10)));
+  }
+  function renderBest() {
+    const b = getBest();
+    bestScoreNumEl.textContent = b > 0 ? b : '--';
+  }
+  function renderHistory() {
+    const h = loadHistory();
+    historyBarsEl.innerHTML = h.length
+      ? h.map(e => `<div class="history-bar" style="height:${Math.max(4, e.score)}%" title="${e.date}: ${e.score}点"></div>`).join('')
+      : '<p style="color:var(--sub-text);font-size:.85rem;">まだ記録がありません</p>';
+  }
+  updateStreakUI();
+  renderBest();
+  renderHistory();
+
+  /* ===== 顔認識モデル ===== */
+  let faceLandmarker = null;
+  async function ensureModelLoaded() {
+    if (faceLandmarker) return faceLandmarker;
+    const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14');
+    const { FaceLandmarker, FilesetResolver } = vision;
+    const filesetResolver = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const baseConfig = {
+      outputFaceBlendshapes: true,
+      runningMode: 'VIDEO',
+      numFaces: 1,
+    };
+    const modelAssetPath = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+    try {
+      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: { modelAssetPath, delegate: 'GPU' },
+        ...baseConfig,
+      });
+    } catch (e) {
+      faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+        baseOptions: { modelAssetPath, delegate: 'CPU' },
+        ...baseConfig,
+      });
+    }
+    return faceLandmarker;
+  }
+
+  /* ===== カメラ制御 ===== */
+  let cameraStreamRef = null;
+  let cameraRunning = false;
+  let rafId = null;
+  let lastVideoTime = -1;
+  let noFaceStreak = 0;
+
+  function setCameraMsg(text) {
+    cameraMsg.textContent = text;
+    cameraMsg.classList.toggle('hidden', !text);
+  }
+
+  async function startCamera() {
+    if (cameraRunning) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraMsg('この機能を使うには https 環境が必要です');
+      return;
+    }
+    try {
+      startCamBtn.disabled = true;
+      setCameraMsg('モデルを読み込み中...');
+      await ensureModelLoaded();
+      setCameraMsg('カメラを起動中...');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false,
+      });
+      cameraStreamRef = stream;
+      video.srcObject = stream;
+      await video.play();
+      cameraRunning = true;
+      setCameraMsg('');
+      startCamBtn.classList.add('hidden');
+      stopCamBtn.classList.remove('hidden');
+      lastVideoTime = -1;
+      noFaceStreak = 0;
+      detectLoop();
+      setTimeout(() => { if (cameraRunning) markPracticed(); }, 3000);
+    } catch (err) {
+      console.error('camera start failed', err);
+      setCameraMsg('カメラを利用できませんでした。ブラウザのカメラ権限をご確認ください。');
+    } finally {
+      startCamBtn.disabled = false;
+    }
+  }
+
+  function stopCamera() {
+    if (cameraStreamRef) {
+      cameraStreamRef.getTracks().forEach(t => t.stop());
+      cameraStreamRef = null;
+    }
+    video.srcObject = null;
+    cameraRunning = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    setCameraMsg('📷 カメラを起動してください');
+    startCamBtn.classList.remove('hidden');
+    stopCamBtn.classList.add('hidden');
+    updateScoreUI(0);
+    renderChecklist(checklistEl, emptyChecklist);
+    commentBox.textContent = 'カメラを起動すると、アドバイスがここに表示されます';
+  }
+
+  startCamBtn.addEventListener('click', startCamera);
+  stopCamBtn.addEventListener('click', stopCamera);
+
+  function detectLoop() {
+    if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+      lastVideoTime = video.currentTime;
+      const result = faceLandmarker.detectForVideo(video, performance.now());
+      if (result.faceBlendshapes && result.faceBlendshapes.length) {
+        noFaceStreak = 0;
+        processBlendshapes(result.faceBlendshapes[0].categories);
+      } else {
+        noFaceStreak++;
+        if (noFaceStreak > 6) {
+          updateScoreUI(0);
+          renderChecklist(checklistEl, emptyChecklist);
+          commentBox.textContent = '顔が検出できません。カメラの正面に顔を映してください';
+          if (keepChallengeActive) { keepStartTime = null; updateKeepBar(0); }
+        }
+      }
+    }
+    rafId = requestAnimationFrame(detectLoop);
+  }
+
+  /* ===== スコアリング ===== */
+  const buffers = { mouth: [], eye: [], symmetry: [], jawOpen: [], tension: [] };
+  const BUFFER_SIZE = 8;
+  function pushBuf(key, value) {
+    const b = buffers[key];
+    b.push(value);
+    if (b.length > BUFFER_SIZE) b.shift();
+  }
+  function avgBuf(key) {
+    const b = buffers[key];
+    return b.reduce((s, v) => s + v, 0) / (b.length || 1);
+  }
+  function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
+  function catScore(categories, name) {
+    const c = categories.find(c => c.categoryName === name);
+    return c ? c.score : 0;
+  }
+
+  let latestScore = 0;
+  let latestChecklist = { ...emptyChecklist };
+  let latestMetrics = { jawOpen: 0 };
+
+  let lastCommentKey = null;
+  let lastCommentChangeTime = 0;
+
+  function processBlendshapes(cats) {
+    const mouthSmileL = catScore(cats, 'mouthSmileLeft');
+    const mouthSmileR = catScore(cats, 'mouthSmileRight');
+    const cheekSquintL = catScore(cats, 'cheekSquintLeft');
+    const cheekSquintR = catScore(cats, 'cheekSquintRight');
+    const jawOpen = catScore(cats, 'jawOpen');
+    const browDownL = catScore(cats, 'browDownLeft');
+    const browDownR = catScore(cats, 'browDownRight');
+    const pressL = catScore(cats, 'mouthPressLeft');
+    const pressR = catScore(cats, 'mouthPressRight');
+
+    pushBuf('mouth', (mouthSmileL + mouthSmileR) / 2);
+    pushBuf('eye', (cheekSquintL + cheekSquintR) / 2);
+    pushBuf('symmetry', Math.abs(mouthSmileL - mouthSmileR));
+    pushBuf('jawOpen', jawOpen);
+    pushBuf('tension', (browDownL + browDownR) / 2 * 0.6 + (pressL + pressR) / 2 * 0.4);
+
+    const mouthSmileAvg = avgBuf('mouth');
+    const cheekSquintAvg = avgBuf('eye');
+    const symDiff = avgBuf('symmetry');
+    const jawOpenAvg = avgBuf('jawOpen');
+    const tensionAvg = avgBuf('tension');
+
+    const checklist = {
+      mouth: mouthSmileAvg > 0.45,
+      eye: cheekSquintAvg > 0.25,
+      symmetry: symDiff < 0.15,
+      teeth: jawOpenAvg >= 0.05 && jawOpenAvg <= 0.35,
+      tension: tensionAvg < 0.35,
+    };
+
+    const mouthG = clamp01(mouthSmileAvg / 0.6);
+    const eyeG = clamp01(cheekSquintAvg / 0.35);
+    const symG = clamp01(1 - symDiff / 0.3);
+    let teethG;
+    if (jawOpenAvg < 0.05) teethG = clamp01(jawOpenAvg / 0.05);
+    else if (jawOpenAvg > 0.35) teethG = clamp01(1 - (jawOpenAvg - 0.35) / 0.3);
+    else teethG = 1;
+    const tensionG = clamp01(1 - tensionAvg / 0.5);
+
+    const score = Math.round(30 * mouthG + 30 * eyeG + 15 * symG + 15 * teethG + 10 * tensionG);
+
+    latestScore = score;
+    latestChecklist = checklist;
+    latestMetrics = { jawOpen: jawOpenAvg };
+
+    updateScoreUI(score);
+    renderChecklist(checklistEl, checklist);
+    updateComment(checklist, latestMetrics);
+    updateKeepChallenge(checklist);
+  }
+
+  function updateComment(checklist, metrics) {
+    const items = [
+      { key: 'mouth', pass: checklist.mouth, weight: 30, text: '口角をもっと上げてみて!「ハッピー」と言うイメージで口角をキュッと。' },
+      { key: 'eye', pass: checklist.eye, weight: 30, text: '目元も一緒に笑わせて!下まぶたを軽く持ち上げる意識で。' },
+      { key: 'symmetry', pass: checklist.symmetry, weight: 15, text: '左右のバランスを整えて!片方だけ口角が上がっていないか確認してみて。' },
+      { key: 'teeth', pass: checklist.teeth, weight: 15, text: metrics.jawOpen < 0.05 ? '口を少しだけ開けて、上の歯を見せてみて。' : '口を開けすぎかも。少し力を抜いてみて。' },
+      { key: 'tension', pass: checklist.tension, weight: 10, text: '力が入りすぎてるかも。一度ふーっと脱力してから笑ってみて。' },
+    ];
+    const failing = items.filter(i => !i.pass).sort((a, b) => b.weight - a.weight);
+    const target = failing.length ? failing[0] : { key: 'perfect', text: '✨ 完璧!その表情の感覚を覚えておこう!' };
+    const now = performance.now();
+    if (target.key !== lastCommentKey && now - lastCommentChangeTime > 600) {
+      lastCommentKey = target.key;
+      lastCommentChangeTime = now;
+      commentBox.textContent = target.text;
+    }
+  }
+
+  /* ===== 5秒キープチャレンジ ===== */
+  let keepChallengeActive = false;
+  let keepStartTime = null;
+
+  function updateKeepBar(elapsedMs) {
+    keepBar.style.width = Math.min(100, (elapsedMs / 5000) * 100) + '%';
+  }
+  function updateKeepChallenge(checklist) {
+    if (!keepChallengeActive) return;
+    const allPass = CHECK_ITEMS.every(i => checklist[i.key]);
+    if (allPass) {
+      if (keepStartTime === null) keepStartTime = performance.now();
+      const elapsed = performance.now() - keepStartTime;
+      updateKeepBar(elapsed);
+      if (elapsed >= 5000) keepSuccess();
+    } else {
+      keepStartTime = null;
+      updateKeepBar(0);
+    }
+  }
+  function keepSuccess() {
+    keepChallengeActive = false;
+    keepStartTime = null;
+    keepBarWrap.classList.add('hidden');
+    keepToggleBtn.textContent = '挑戦する';
+    keepMsg.textContent = '🎉 5秒キープ成功!よくできました!';
+    markPracticed();
+  }
+  keepToggleBtn.addEventListener('click', () => {
+    keepChallengeActive = !keepChallengeActive;
+    if (keepChallengeActive) {
+      keepStartTime = null;
+      updateKeepBar(0);
+      keepBarWrap.classList.remove('hidden');
+      keepToggleBtn.textContent = '中止する';
+      keepMsg.textContent = 'キープ中...そのまま笑顔をキープしてみて!';
+    } else {
+      keepBarWrap.classList.add('hidden');
+      keepToggleBtn.textContent = '挑戦する';
+      keepMsg.textContent = '全項目クリアの状態を5秒キープできるか挑戦してみよう';
+    }
+  });
+
+  /* ===== 本番テスト(カウントダウン撮影) ===== */
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  captureBtn.addEventListener('click', async () => {
+    if (!cameraRunning) {
+      await startCamera();
+      if (!cameraRunning) return;
+    }
+    captureBtn.disabled = true;
+    countdownOverlay.classList.remove('hidden');
+    for (const n of [3, 2, 1]) {
+      countdownOverlay.textContent = String(n);
+      await sleep(700);
+    }
+    countdownOverlay.textContent = '📸';
+    await sleep(250);
+    countdownOverlay.classList.add('hidden');
+    captureFrame();
+    captureBtn.disabled = false;
+  });
+
+  function captureFrame() {
+    const w = video.videoWidth || 480;
+    const h = video.videoHeight || 640;
+    captureCanvas.width = w;
+    captureCanvas.height = h;
+    const ctx = captureCanvas.getContext('2d');
+    ctx.save();
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, w, h);
+    ctx.restore();
+
+    const score = latestScore;
+    resultScoreNum.textContent = score;
+    renderChecklist(resultChecklistEl, latestChecklist);
+
+    pushHistory(score);
+    const prevBest = getBest();
+    const isNewBest = score > prevBest && score > 0;
+    if (isNewBest) setBest(score);
+    renderBest();
+    renderHistory();
+    markPracticed();
+    newBestBadge.classList.toggle('hidden', !isNewBest);
+
+    testIdle.classList.add('hidden');
+    testResult.classList.remove('hidden');
+  }
+
+  retryBtn.addEventListener('click', () => {
+    testResult.classList.add('hidden');
+    testIdle.classList.remove('hidden');
+  });
+
+  window.addEventListener('beforeunload', () => { if (cameraRunning) stopCamera(); });
+</script>
+</body>
+</html>
