@@ -519,7 +519,9 @@
   }
 
   /* ===== localStorage: ストリーク / ベストスコア / 履歴 ===== */
-  function todayStr() { return new Date().toISOString().slice(0, 10); }
+  // 端末のローカル日付で判定する(toISOStringはUTC基準のため、日本時間の朝9時前に日付がズレる)
+  function dateStr(d) { return d.toLocaleDateString('sv-SE'); }
+  function todayStr() { return dateStr(new Date()); }
   function loadDates() { try { return JSON.parse(localStorage.getItem('smileNavi.practiceDates') || '[]'); } catch { return []; } }
   function markPracticed() {
     const dates = loadDates();
@@ -534,7 +536,7 @@
     const dates = new Set(loadDates());
     let streak = 0;
     const d = new Date();
-    while (dates.has(d.toISOString().slice(0, 10))) {
+    while (dates.has(dateStr(d))) {
       streak++;
       d.setDate(d.getDate() - 1);
     }
@@ -647,6 +649,10 @@
     video.srcObject = null;
     cameraRunning = false;
     if (rafId) cancelAnimationFrame(rafId);
+    // 平滑化バッファと直近スコアを消して、次回起動時に前回の値が混ざらないようにする
+    Object.keys(buffers).forEach(k => { buffers[k].length = 0; });
+    latestScore = 0;
+    latestChecklist = { ...emptyChecklist };
     setCameraMsg('📷 カメラを起動してください');
     startCamBtn.classList.remove('hidden');
     stopCamBtn.classList.add('hidden');
@@ -670,6 +676,9 @@
       } else {
         noFaceStreak++;
         if (noFaceStreak > 6) {
+          // 顔が消えたら採点用の直近値もリセットする(古いスコアで本番テストが採点されるのを防ぐ)
+          latestScore = 0;
+          latestChecklist = { ...emptyChecklist };
           updateScoreUI(0);
           renderChecklist(checklistEl, emptyChecklist);
           commentBox.textContent = '顔が検出できません。カメラの正面に顔を映してください';
